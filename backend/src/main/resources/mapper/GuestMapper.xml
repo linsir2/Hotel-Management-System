@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hotel.dao.GuestDao">
+    <select id="getAllGuests" resultType="com.hotel.entity.Guest">
+        SELECT * FROM guests
+    </select>
+
+    <select id="getGuestById" resultType="com.hotel.entity.Guest">
+        SELECT * FROM guests WHERE id = #{id}
+    </select>
+
+    <insert id="createGuest" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO guests (name, id_card, phone)
+        VALUES (#{name}, #{idCard}, #{phone})
+    </insert>
+
+    <update id="updateGuest">
+        UPDATE guests
+        SET name = #{name}, id_card = #{idCard}, phone = #{phone}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteGuest">
+        DELETE FROM guests WHERE id = #{id}
+    </delete>
+
+    <select id="getGuestByName" resultType="com.hotel.entity.Guest">
+        SELECT * FROM guests WHERE name = #{name} LIMIT 1
+    </select>
+</mapper>

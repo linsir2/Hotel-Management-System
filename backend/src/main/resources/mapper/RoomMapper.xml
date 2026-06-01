@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hotel.dao.RoomDao">
+    <select id="getAllRooms" resultType="com.hotel.entity.Room">
+        SELECT * FROM rooms ORDER BY room_number ASC
+    </select>
+
+    <select id="getRoomById" resultType="com.hotel.entity.Room">
+        SELECT * FROM rooms WHERE id = #{id}
+    </select>
+
+    <update id="updateRoomStatus">
+        UPDATE rooms SET status = #{status} WHERE id = #{id}
+    </update>
+
+    <insert id="createRoom" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO rooms (room_number, type, price, status)
+        VALUES (#{roomNumber}, #{type}, #{price}, #{status})
+    </insert>
+
+    <update id="updateRoom">
+        UPDATE rooms
+        SET room_number = #{roomNumber}, type = #{type}, price = #{price}, status = #{status}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteRoom">
+        DELETE FROM rooms WHERE id = #{id}
+    </delete>
+
+    <select id="getRoomByNumber" resultType="com.hotel.entity.Room">
+        SELECT * FROM rooms WHERE room_number = #{roomNumber}
+    </select>
+</mapper>
