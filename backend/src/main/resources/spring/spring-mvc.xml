@@ -12,6 +12,7 @@
 
     <!-- Scan Controllers -->
     <context:component-scan base-package="com.hotel.controller" />
+    <context:component-scan base-package="com.hotel.ai.controller" />
 
     <!-- Enable MVC Annotations with UTF-8 -->
     <mvc:annotation-driven>

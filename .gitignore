@@ -5,6 +5,7 @@
 *.swp
 *.swo
 .DS_Store
+.env
 
 # Build output
 **/target/
@@ -30,6 +31,14 @@ pom.xml.releaseBackup
 pom.xml.tagReleaseBackup
 pom.xml.nextSnapshot
 release.properties
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
 
 # GA (GenericAgent)
 .ga/

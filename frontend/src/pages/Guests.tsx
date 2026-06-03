@@ -1,16 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Search, 
-  UserPlus, 
+import {
+  Search,
+  UserPlus,
   MoreVertical,
   Phone,
   IdCard,
   History,
   X,
-  Trash2
+  Trash2,
+  Sparkles,
+  Loader2
 } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import PasswordVerifyModal from '../components/PasswordVerifyModal';
+import AISearchToggle from '../components/AISearchToggle';
+import { useAISearch } from '../hooks/useAISearch';
 
 const Guests = () => {
   const { guests, fetchGuests, addGuest, updateGuest, deleteGuest } = useStore();
@@ -22,10 +26,23 @@ const Guests = () => {
   // Verification states
   const [isVerifyOpen, setIsVerifyOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<() => void>(() => {});
-  
+
+  // ─── AI: NL Search ───────────────────────────────────────────
+  const { aiEnabled, aiLoading, aiResults, aiAmbiguity, aiError, toggleAi, aiSearch } = useAISearch();
+
   useEffect(() => {
     fetchGuests();
   }, [fetchGuests]);
+
+  // AI search: debounce when aiEnabled
+  useEffect(() => {
+    if (!aiEnabled) return;
+    const timer = setTimeout(() => aiSearch(searchQuery), 350);
+    return () => clearTimeout(timer);
+  }, [searchQuery, aiEnabled, aiSearch]);
+
+  // When AI returns guest results, merge for display
+  const aiGuestResults = aiEnabled && aiResults?.table === 'guests' ? aiResults.results : null;
 
   const [newGuest, setNewGuest] = useState({
     name: '',
@@ -58,6 +75,11 @@ const Guests = () => {
     guest.phone.includes(searchQuery) || 
     guest.idCard.includes(searchQuery)
   );
+
+  // AI-enhanced display: when AI mode active, show only AI-matched guests
+  const displayGuests = aiGuestResults
+    ? guests.filter(g => aiGuestResults.some((ag: any) => ag.id === g.id))
+    : filteredGuests;
 
   const handleAddGuest = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -121,18 +143,49 @@ const Guests = () => {
       <div className="flex gap-4 items-center bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <input 
-            type="text" 
-            placeholder="搜索姓名、电话或身份证号..." 
+          <input
+            type="text"
+            placeholder={aiEnabled ? "AI模式: 试试「张伟」「姓张的客人」..." : "搜索姓名、电话或身份证号..."}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
           />
         </div>
+        <AISearchToggle enabled={aiEnabled} onToggle={toggleAi} loading={aiLoading} />
       </div>
 
+      {/* AI: 歧义提示 */}
+      {aiAmbiguity && aiAmbiguity.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-700">
+          🤔 你的搜索可能匹配多个类型：{aiAmbiguity.map((a: any) => a.label).join(' / ')}，请细化关键词。
+        </div>
+      )}
+
+      {/* AI: 错误提示 */}
+      {aiError && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">
+          ❌ AI 搜索失败：{aiError}
+        </div>
+      )}
+
+      {/* AI: 搜索结果提示 */}
+      {aiEnabled && aiResults && (
+        <div className="bg-purple-50 border border-purple-100 rounded-xl px-4 py-2 text-xs text-purple-600 font-medium flex items-center gap-2">
+          <Sparkles className="w-3.5 h-3.5" />
+          AI 识别意图：{aiResults.intent_display || aiResults.matched_category || '未知'}，找到 {aiResults.count || aiResults.results?.length || 0} 条结果
+        </div>
+      )}
+
+      {/* AI: 搜索中提示 */}
+      {aiEnabled && aiLoading && (
+        <div className="flex items-center justify-center gap-2 py-4 text-purple-500">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <span className="text-sm">AI 正在理解你的搜索...</span>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredGuests.map((guest) => (
+        {displayGuests.map((guest) => (
           <div key={guest.id} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow relative group">
             <button 
               onClick={() => handleEditClick(guest)}
@@ -167,9 +220,9 @@ const Guests = () => {
           </div>
         ))}
       </div>
-      {filteredGuests.length === 0 && (
+      {displayGuests.length === 0 && (
         <div className="p-12 text-center text-gray-500 bg-white rounded-2xl border border-gray-100">
-          未找到匹配的住客记录
+          {aiEnabled ? 'AI 搜索无结果，试试其他关键词' : '未找到匹配的住客记录'}
         </div>
       )}
 

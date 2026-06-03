@@ -13,6 +13,16 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8080/hotel',
         changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('proxyRes', (proxyRes) => {
+            const cookies = proxyRes.headers['set-cookie'];
+            if (cookies) {
+              proxyRes.headers['set-cookie'] = (Array.isArray(cookies) ? cookies : [cookies]).map(c =>
+                c.replace(/Path=\/hotel\/?/g, 'Path=/')
+              );
+            }
+          });
+        },
       }
     }
   },

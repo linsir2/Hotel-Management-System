@@ -22,6 +22,20 @@
         <url-pattern>/*</url-pattern>
     </filter-mapping>
 
+    <!-- AI Gateway Filter — PII masking, auth, audit, rate limiting -->
+    <filter>
+        <filter-name>AiGatewayFilter</filter-name>
+        <filter-class>com.hotel.ai.filter.AiGatewayFilter</filter-class>
+        <init-param>
+            <param-name>enabled</param-name>
+            <param-value>true</param-value>
+        </init-param>
+    </filter>
+    <filter-mapping>
+        <filter-name>AiGatewayFilter</filter-name>
+        <url-pattern>/api/ai/*</url-pattern>
+    </filter-mapping>
+
     <!-- Spring Context Loader Listener -->
     <context-param>
         <param-name>contextConfigLocation</param-name>

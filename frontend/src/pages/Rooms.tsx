@@ -1,16 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Plus, 
-  Search, 
+import {
+  Plus,
+  Search,
   Filter,
   MoreVertical,
   BedDouble,
   X,
-  Trash2
+  Trash2,
+  Sparkles,
+  TrendingUp,
+  TrendingDown,
+  CheckCircle2,
+  XCircle,
+  Loader2
 } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { Room } from '../types';
 import PasswordVerifyModal from '../components/PasswordVerifyModal';
+import AISearchToggle from '../components/AISearchToggle';
+import { useAISearch } from '../hooks/useAISearch';
 
 const Rooms = () => {
   const { rooms, fetchRooms, addRoom, updateRoom, deleteRoom } = useStore();
@@ -24,6 +32,54 @@ const Rooms = () => {
   const [isVerifyOpen, setIsVerifyOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<() => void>(() => {});
 
+  // ─── AI: NL Search ───────────────────────────────────────────
+  const { aiEnabled, aiLoading, aiResults, aiAmbiguity, aiError, toggleAi, aiSearch } = useAISearch();
+
+  // ─── AI: Pricing Recommendations ─────────────────────────────
+  const [showPricing, setShowPricing] = useState(false);
+  const [pricingData, setPricingData] = useState<any>(null);
+  const [pricingLoading, setPricingLoading] = useState(false);
+
+  const fetchPricingRecs = async () => {
+    setShowPricing(true);
+    setPricingLoading(true);
+    try {
+      const res = await fetch('/api/ai/price-recs?daysAhead=30');
+      const data = await res.json();
+      setPricingData(data);
+    } catch (err) {
+      console.error('Failed to fetch pricing recommendations:', err);
+    } finally {
+      setPricingLoading(false);
+    }
+  };
+
+  const handleApprovePrice = async (id: number) => {
+    try {
+      await fetch(`/api/ai/price-recs/${id}/approve`, { method: 'POST' });
+      // Refresh pricing data + rooms
+      fetchPricingRecs();
+      fetchRooms();
+    } catch (err) {
+      console.error('Failed to approve:', err);
+    }
+  };
+
+  const handleRejectPrice = async (id: number) => {
+    const reason = prompt('请填写拒绝原因：');
+    if (!reason) return;
+    try {
+      await fetch(`/api/ai/price-recs/${id}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
+      });
+      fetchPricingRecs();
+    } catch (err) {
+      console.error('Failed to reject:', err);
+    }
+  };
+
   const [newRoom, setNewRoom] = useState<Partial<Room>>({
     roomNumber: '',
     type: '标准单人间',
@@ -34,6 +90,16 @@ const Rooms = () => {
   useEffect(() => {
     fetchRooms();
   }, [fetchRooms]);
+
+  // AI search: debounce and call API when aiEnabled
+  useEffect(() => {
+    if (!aiEnabled) return;
+    const timer = setTimeout(() => aiSearch(searchQuery), 350);
+    return () => clearTimeout(timer);
+  }, [searchQuery, aiEnabled, aiSearch]);
+
+  // When AI returns room results, merge for display
+  const aiRoomResults = aiEnabled && aiResults?.table === 'rooms' ? aiResults.results : null;
 
   const statusColors: any = {
     AVAILABLE: 'bg-emerald-50 text-emerald-600 border-emerald-100',
@@ -55,6 +121,11 @@ const Rooms = () => {
       return matchesFilter && matchesSearch;
     })
     .sort((a, b) => a.roomNumber.localeCompare(b.roomNumber, undefined, { numeric: true, sensitivity: 'base' }));
+
+  // AI-enhanced display: when AI mode active, show only AI-matched rooms
+  const displayRooms = aiRoomResults
+    ? rooms.filter(r => aiRoomResults.some((ar: any) => ar.id === r.id || ar.room_number === r.roomNumber))
+    : filteredRooms;
 
   const handleAddRoom = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,12 +158,20 @@ const Rooms = () => {
           <h1 className="text-2xl font-bold text-gray-900">客房管理</h1>
           <p className="text-gray-500">查看并管理酒店所有房间的状态和信息。</p>
         </div>
-        <button 
+        <button
           onClick={() => setIsModalOpen(true)}
           className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl font-medium hover:bg-blue-700 transition-colors shadow-sm"
         >
           <Plus className="w-5 h-5" />
           新增房间
+        </button>
+        {/* AI: 定价建议按钮 */}
+        <button
+          onClick={fetchPricingRecs}
+          className="flex items-center gap-2 bg-purple-50 text-purple-600 border border-purple-200 px-4 py-2 rounded-xl font-medium hover:bg-purple-100 transition-colors"
+        >
+          <Sparkles className="w-4 h-4" />
+          AI定价建议
         </button>
       </div>
 
@@ -101,14 +180,15 @@ const Rooms = () => {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input 
             type="text" 
-            placeholder="搜索房间号或类型..." 
+            placeholder={aiEnabled ? "AI模式: 试试说「空房」「套房」「维修的房间」..." : "搜索房间号或类型..."} 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
           />
         </div>
         <div className="flex items-center gap-2">
-          <select 
+          <AISearchToggle enabled={aiEnabled} onToggle={toggleAi} loading={aiLoading} />
+          <select
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             className="bg-gray-50 border border-gray-200 text-gray-600 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5"
@@ -121,8 +201,38 @@ const Rooms = () => {
         </div>
       </div>
 
+      {/* AI: 错误提示 */}
+      {aiError && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">
+          ❌ AI 搜索失败：{aiError}
+        </div>
+      )}
+
+      {/* AI: 歧义提示 */}
+      {aiAmbiguity && aiAmbiguity.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-700">
+          🤔 你的搜索可能匹配多个类型：{aiAmbiguity.map((a: any) => a.label).join(' / ')}，请细化关键词。
+        </div>
+      )}
+
+      {/* AI: 搜索结果提示 */}
+      {aiEnabled && aiResults && (
+        <div className="bg-purple-50 border border-purple-100 rounded-xl px-4 py-2 text-xs text-purple-600 font-medium flex items-center gap-2">
+          <Sparkles className="w-3.5 h-3.5" />
+          AI 识别意图：{aiResults.intent_display || aiResults.matched_category || '未知'}，找到 {aiResults.count || aiResults.results?.length || 0} 条结果
+        </div>
+      )}
+
+      {/* AI: 搜索中提示 */}
+      {aiEnabled && aiLoading && (
+        <div className="flex items-center justify-center gap-2 py-8 text-purple-500">
+          <Loader2 className="w-5 h-5 animate-spin" />
+          <span className="text-sm">AI 正在理解你的搜索...</span>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {filteredRooms.map((room) => (
+        {displayRooms.map((room) => (
           <div key={room.id} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
             <div className="flex justify-between items-start mb-4">
               <div className="p-3 bg-blue-50 rounded-xl">
@@ -310,7 +420,99 @@ const Rooms = () => {
         </div>
       )}
 
-      <PasswordVerifyModal 
+      {/* ═══ AI: 定价建议 Modal ═══ */}
+      {showPricing && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[85vh] overflow-hidden shadow-2xl flex flex-col">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center shrink-0">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-purple-500" />
+                  AI 定价建议
+                </h2>
+                <p className="text-sm text-gray-500">基于入住率、节假日等多因子分析</p>
+              </div>
+              <button onClick={() => setShowPricing(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto p-6 space-y-3">
+              {pricingLoading && (
+                <div className="flex items-center gap-3 text-purple-600 justify-center py-12">
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                  <span className="font-medium">AI 分析中...</span>
+                </div>
+              )}
+
+              {!pricingLoading && pricingData?.recommendations?.map((rec: any) => (
+                <div key={rec.id || rec.room_id} className="bg-gray-50 rounded-xl p-4 flex items-center justify-between gap-4 border border-gray-100">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-bold text-gray-900">{rec.room_number || rec.room_id}</span>
+                      <span className="text-xs text-gray-500 bg-gray-200 px-2 py-0.5 rounded">{rec.room_type}</span>
+                    </div>
+                    <div className="flex items-center gap-4 text-sm">
+                      <span className="text-gray-500">当前 <span className="font-bold text-gray-700">¥{rec.current_price}</span></span>
+                      <span>→</span>
+                      <span className="text-purple-600 font-bold">¥{rec.suggested_price}</span>
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                        (rec.change_pct ?? rec.final_change_pct ?? 0) >= 0
+                          ? 'text-red-600 bg-red-50'
+                          : 'text-green-600 bg-green-50'
+                      }`}>
+                        {(rec.change_pct ?? rec.final_change_pct ?? 0) >= 0 ? <TrendingUp className="w-3 h-3 inline" /> : <TrendingDown className="w-3 h-3 inline" />}
+                        {' '}{rec.change_pct ?? rec.final_change_pct ?? 0}%
+                      </span>
+                    </div>
+                    {rec.occupancy_pct != null && (
+                      <div className="text-xs text-gray-400 mt-1">入住率: {rec.occupancy_pct}%</div>
+                    )}
+                  </div>
+                  {(rec.status === 'PENDING' || rec.status == null) ? (
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => handleApprovePrice(rec.id)}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-emerald-500 text-white text-xs font-bold rounded-lg hover:bg-emerald-600 transition-colors"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" /> 同意
+                      </button>
+                      <button
+                        onClick={() => handleRejectPrice(rec.id)}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-red-100 text-red-600 text-xs font-bold rounded-lg hover:bg-red-200 transition-colors"
+                      >
+                        <XCircle className="w-3.5 h-3.5" /> 拒绝
+                      </button>
+                    </div>
+                  ) : (
+                    <span className={`text-xs font-bold px-3 py-1 rounded-full shrink-0 ${
+                      rec.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'
+                    }`}>
+                      {rec.status === 'APPROVED' ? '已采纳' : '已拒绝'}
+                    </span>
+                  )}
+                </div>
+              ))}
+
+              {!pricingLoading && (!pricingData?.recommendations || pricingData.recommendations.length === 0) && (
+                <div className="text-center text-gray-400 py-12">
+                  <Sparkles className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p>暂无定价建议</p>
+                  <p className="text-xs mt-1">当前入住率稳定，所有价格合理</p>
+                </div>
+              )}
+
+              {pricingData?.pending_count > 0 && (
+                <div className="text-xs text-gray-500 text-center pt-2">
+                  共 {pricingData.pending_count} 条待审批
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <PasswordVerifyModal
         isOpen={isVerifyOpen}
         onClose={() => setIsVerifyOpen(false)}
         onSuccess={pendingAction}
