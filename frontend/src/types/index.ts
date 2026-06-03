@@ -23,4 +23,7 @@ export interface Booking {
   totalAmount: number;
   room?: Room;
   guest?: Guest;
+  // Aliased fields from joined queries (backend may return these)
+  guestName?: string;
+  roomNumber?: string;
 }

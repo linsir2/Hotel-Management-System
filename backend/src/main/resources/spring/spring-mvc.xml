@@ -13,8 +13,17 @@
     <!-- Scan Controllers -->
     <context:component-scan base-package="com.hotel.controller" />
 
-    <!-- Enable MVC Annotations -->
-    <mvc:annotation-driven />
+    <!-- Enable MVC Annotations with UTF-8 -->
+    <mvc:annotation-driven>
+        <mvc:message-converters>
+            <bean class="org.springframework.http.converter.StringHttpMessageConverter">
+                <constructor-arg value="UTF-8"/>
+            </bean>
+            <bean class="org.springframework.http.converter.json.MappingJackson2HttpMessageConverter">
+                <property name="defaultCharset" value="UTF-8"/>
+            </bean>
+        </mvc:message-converters>
+    </mvc:annotation-driven>
 
     <!-- Default Servlet Handler -->
     <mvc:default-servlet-handler />
